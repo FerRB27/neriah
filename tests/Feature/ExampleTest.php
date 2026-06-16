@@ -286,4 +286,37 @@ class ExampleTest extends TestCase
         $this->post(route('purchases.confirm', $purchase))
             ->assertSessionHasErrors('purchase');
     }
+
+    public function test_admin_can_view_inventory_and_kardex(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $item = InventoryItem::query()->where('item_type', 'input')->first();
+
+        $this->get(route('inventory.index'))->assertOk();
+        $this->get(route('inventory.index', ['critical' => 1]))->assertOk();
+        $this->get(route('inventory.show', $item))->assertOk();
+
+        $supplier = Supplier::query()->first();
+        $purchase = Purchase::query()->create([
+            'supplier_id' => $supplier->id,
+            'purchased_at' => now()->toDateString(),
+            'status' => 'draft',
+            'total_amount' => 15,
+        ]);
+        $purchase->lines()->create([
+            'inventory_item_id' => $item->id,
+            'quantity' => 3,
+            'unit_cost' => 5,
+            'total_cost' => 15,
+        ]);
+
+        $this->post(route('purchases.confirm', $purchase))->assertRedirect(route('purchases.show', $purchase));
+
+        $this->get(route('inventory.show', $item))
+            ->assertOk()
+            ->assertSee('Compra #'.$purchase->id);
+    }
 }

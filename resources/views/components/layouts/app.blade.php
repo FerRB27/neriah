@@ -19,7 +19,7 @@
                 ['label' => 'Insumos', 'route' => 'inputs.index', 'permission' => 'products.manage', 'accent' => 'bg-teal-500'],
                 ['label' => 'Productos', 'route' => 'products.index', 'permission' => 'products.manage', 'accent' => 'bg-lime-500'],
                 ['label' => 'Formulas', 'route' => 'recipes.index', 'permission' => 'recipes.manage', 'accent' => 'bg-amber-500'],
-                ['label' => 'Inventario', 'route' => 'modules.show', 'params' => ['inventory'], 'permission' => 'inventory.view', 'accent' => 'bg-teal-500'],
+                ['label' => 'Inventario', 'route' => 'inventory.index', 'permission' => 'inventory.view', 'accent' => 'bg-teal-500'],
                 ['label' => 'Proveedores', 'route' => 'suppliers.index', 'permission' => 'purchases.manage', 'accent' => 'bg-orange-500'],
                 ['label' => 'Compras', 'route' => 'purchases.index', 'permission' => 'purchases.manage', 'accent' => 'bg-orange-500'],
                 ['label' => 'Produccion', 'route' => 'modules.show', 'params' => ['production'], 'permission' => 'production.manage', 'accent' => 'bg-yellow-500'],

@@ -5,6 +5,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FounderCapitalController;
 use App\Http\Controllers\InputController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ModulePlaceholderController;
 use App\Http\Controllers\PeopleController;
 use App\Http\Controllers\ProductController;
@@ -77,6 +78,14 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:purchases.manage')
         ->name('purchases.confirm');
 
+    Route::get('/inventario', [InventoryController::class, 'index'])
+        ->middleware('can:inventory.view')
+        ->name('inventory.index');
+
+    Route::get('/inventario/{inventoryItem}', [InventoryController::class, 'show'])
+        ->middleware('can:inventory.view')
+        ->name('inventory.show');
+
     Route::get('/finanzas/capital-fundador', [FounderCapitalController::class, 'index'])
         ->middleware('can:finance.manage')
         ->name('finance.founder-capital.index');
@@ -87,7 +96,6 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/modulos/{module}', ModulePlaceholderController::class)
         ->whereIn('module', [
-            'inventory',
             'production',
             'sales',
             'commissions',
