@@ -6,10 +6,15 @@ use App\Domains\Commissions\Models\CommissionEntry;
 use App\Domains\Inventory\DTOs\InventoryMovementData;
 use App\Domains\Inventory\Enums\InventoryMovementDirection;
 use App\Domains\Inventory\Enums\InventoryMovementType;
+use App\Domains\Inventory\Models\InventoryItem;
 use App\Domains\Inventory\Services\KardexService;
+use App\Domains\Payments\Enums\PaymentStatus;
+use App\Domains\Payments\Models\Payment;
 use App\Domains\Sales\Enums\SaleStatus;
 use App\Domains\Sales\Models\Sale;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ConfirmSaleAction
 {
@@ -21,14 +26,39 @@ class ConfirmSaleAction
     public function execute(Sale $sale): Sale
     {
         return DB::transaction(function () use ($sale): Sale {
-            $sale->loadMissing('lines.productVariant.product', 'seller', 'maker', 'customer');
+            $sale->loadMissing('lines.productVariant.product', 'lines.inventoryItem', 'seller', 'maker', 'customer');
+
+            if ($sale->status === SaleStatus::Confirmed) {
+                throw ValidationException::withMessages([
+                    'sale' => 'La venta ya fue confirmada.',
+                ]);
+            }
+
+            if ($sale->lines->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'sale' => 'La venta debe tener al menos una linea.',
+                ]);
+            }
 
             $subtotal = 0;
             $visibleProfit = 0;
             $hiddenProfit = 0;
+            $sellerPaymentAmount = 0;
+            $makerPaymentAmount = 0;
 
             foreach ($sale->lines as $line) {
-                $realUnitCost = (float) $line->inventoryItem->average_cost;
+                /** @var InventoryItem $inventoryItem */
+                $inventoryItem = InventoryItem::query()
+                    ->lockForUpdate()
+                    ->findOrFail($line->inventory_item_id);
+
+                if ((float) $inventoryItem->current_stock < (float) $line->quantity) {
+                    throw ValidationException::withMessages([
+                        'sale' => "Stock insuficiente para {$inventoryItem->name}.",
+                    ]);
+                }
+
+                $realUnitCost = (float) $inventoryItem->average_cost;
                 $standardUnitCost = (float) $line->productVariant->product->standard_cost;
                 $lineTotal = (float) $line->quantity * (float) $line->unit_price;
                 $lineVisibleProfit = $lineTotal - ((float) $line->quantity * $standardUnitCost);
@@ -55,25 +85,33 @@ class ConfirmSaleAction
                 ));
 
                 if ($sale->seller_id && (float) $line->productVariant->product->commission_amount > 0) {
+                    $amount = round($line->productVariant->product->commission_amount * (float) $line->quantity, 2);
+
                     CommissionEntry::query()->create([
                         'sale_id' => $sale->id,
                         'sale_line_id' => $line->id,
                         'person_id' => $sale->seller_id,
                         'type' => 'seller',
-                        'amount' => $line->productVariant->product->commission_amount * (float) $line->quantity,
+                        'amount' => $amount,
                         'earned_at' => $sale->sold_at,
                     ]);
+
+                    $sellerPaymentAmount += $amount;
                 }
 
                 if ($sale->maker_id && (float) $line->productVariant->product->maker_payment_amount > 0) {
+                    $amount = round($line->productVariant->product->maker_payment_amount * (float) $line->quantity, 2);
+
                     CommissionEntry::query()->create([
                         'sale_id' => $sale->id,
                         'sale_line_id' => $line->id,
                         'person_id' => $sale->maker_id,
                         'type' => 'maker_payment',
-                        'amount' => $line->productVariant->product->maker_payment_amount * (float) $line->quantity,
+                        'amount' => $amount,
                         'earned_at' => $sale->sold_at,
                     ]);
+
+                    $makerPaymentAmount += $amount;
                 }
 
                 $subtotal += $lineTotal;
@@ -97,7 +135,31 @@ class ConfirmSaleAction
                 'orders_count' => $sale->customer->orders_count + 1,
             ])->save();
 
+            $this->createPendingPayment($sale, $sale->seller_id, $sellerPaymentAmount, 'Comision por venta');
+            $this->createPendingPayment($sale, $sale->maker_id, $makerPaymentAmount, 'Pago elaborador por venta');
+
             return $sale;
         });
+    }
+
+    private function createPendingPayment(Sale $sale, ?int $personId, float $amount, string $concept): void
+    {
+        if (! $personId || $amount <= 0) {
+            return;
+        }
+
+        $soldAt = Carbon::parse($sale->sold_at);
+        $weekStart = $soldAt->copy()->startOfWeek(Carbon::SUNDAY);
+        $weekEnd = $soldAt->copy()->endOfWeek(Carbon::SATURDAY);
+
+        Payment::query()->create([
+            'person_id' => $personId,
+            'amount' => round($amount, 2),
+            'concept' => "{$concept} #{$sale->id}",
+            'status' => PaymentStatus::Pending,
+            'week_start' => $weekStart,
+            'week_end' => $weekEnd,
+            'notes' => 'Generado automaticamente al confirmar venta.',
+        ]);
     }
 }

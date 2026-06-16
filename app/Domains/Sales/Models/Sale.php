@@ -6,6 +6,7 @@ use App\Domains\Customers\Models\Customer;
 use App\Domains\Finance\Models\FinancialProfitAllocation;
 use App\Domains\Inventory\Models\InventoryMovement;
 use App\Domains\People\Models\Person;
+use App\Domains\Commissions\Models\CommissionEntry;
 use App\Domains\Sales\Enums\SaleStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -72,6 +73,11 @@ class Sale extends Model
     public function inventoryMovements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function commissionEntries(): HasMany
+    {
+        return $this->hasMany(CommissionEntry::class);
     }
 
     public function profitAllocation(): HasOne

@@ -5,7 +5,12 @@ namespace Tests\Feature;
 use App\Domains\Customers\Models\Customer;
 use App\Domains\Finance\Enums\FounderCapitalMovementType;
 use App\Domains\Finance\Models\FounderCapitalMovement;
+use App\Domains\Inventory\DTOs\InventoryMovementData;
+use App\Domains\Inventory\Enums\InventoryMovementDirection;
+use App\Domains\Inventory\Enums\InventoryMovementType;
 use App\Domains\Inventory\Models\InventoryItem;
+use App\Domains\Inventory\Services\KardexService;
+use App\Domains\Payments\Models\Payment;
 use App\Domains\People\Models\Person;
 use App\Domains\Products\Models\Input;
 use App\Domains\Products\Models\InputCategory;
@@ -16,6 +21,8 @@ use App\Domains\Production\Models\ProductionOrder;
 use App\Domains\Purchases\Models\Purchase;
 use App\Domains\Purchases\Models\Supplier;
 use App\Domains\Recipes\Models\Recipe;
+use App\Domains\Sales\Models\Sale;
+use App\Domains\Sales\Models\SalesChannel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -400,5 +407,92 @@ class ExampleTest extends TestCase
         $this->post(route('production.confirm', $order), [
             'produced_quantity' => 10,
         ])->assertSessionHasErrors('production');
+    }
+
+    public function test_admin_can_create_and_confirm_sale_generating_kardex_profit_commissions_and_payments(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $variant = ProductVariant::query()->with(['product', 'inventoryItem'])->where('sku', 'JAB-MELON-85G')->first();
+        $inventoryItem = $variant->inventoryItem;
+
+        app(KardexService::class)->record(new InventoryMovementData(
+            inventoryItemId: $inventoryItem->id,
+            type: InventoryMovementType::Adjustment,
+            direction: InventoryMovementDirection::In,
+            quantity: 10,
+            unitCost: 1.02,
+            movementDate: now(),
+            notes: 'Stock inicial de prueba para venta',
+        ));
+
+        $customer = Customer::query()->first();
+        $seller = Person::query()->whereHas('roleAssignments', fn ($query) => $query->where('role', 'seller'))->first();
+        $maker = Person::query()->whereHas('roleAssignments', fn ($query) => $query->where('role', 'maker'))->first();
+        $channel = SalesChannel::query()->first();
+
+        $this->get(route('sales.index'))->assertOk();
+
+        $response = $this->post(route('sales.store'), [
+            'customer_id' => $customer->id,
+            'seller_id' => $seller->id,
+            'maker_id' => $maker->id,
+            'sales_channel_id' => $channel->id,
+            'sold_at' => now()->toDateString(),
+            'discount_total' => 0,
+            'notes' => 'Venta de prueba',
+            'lines' => [
+                [
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 2,
+                    'unit_price' => 2.50,
+                ],
+            ],
+        ]);
+
+        $sale = Sale::query()->latest('id')->first();
+
+        $response->assertRedirect(route('sales.show', $sale));
+        $this->assertSame('draft', $sale->status->value);
+
+        $this->post(route('sales.confirm', $sale))->assertRedirect(route('sales.show', $sale));
+
+        $sale->refresh();
+        $inventoryItem->refresh();
+
+        $this->assertSame('confirmed', $sale->status->value);
+        $this->assertEquals(8.0, (float) $inventoryItem->current_stock);
+        $this->assertEquals(5.0, (float) $sale->total_amount);
+        $this->assertEquals(2.52, (float) $sale->visible_profit);
+        $this->assertEquals(0.44, (float) $sale->hidden_profit);
+        $this->assertDatabaseHas('inventory_movements', [
+            'sale_id' => $sale->id,
+            'inventory_item_id' => $inventoryItem->id,
+            'type' => 'sale',
+            'direction' => 'out',
+        ]);
+        $this->assertDatabaseHas('commission_entries', [
+            'sale_id' => $sale->id,
+            'person_id' => $seller->id,
+            'type' => 'seller',
+            'amount' => 0.50,
+        ]);
+        $this->assertDatabaseHas('commission_entries', [
+            'sale_id' => $sale->id,
+            'person_id' => $maker->id,
+            'type' => 'maker_payment',
+            'amount' => 0.70,
+        ]);
+        $this->assertTrue(Payment::query()->where('person_id', $seller->id)->where('amount', 0.50)->exists());
+        $this->assertTrue(Payment::query()->where('person_id', $maker->id)->where('amount', 0.70)->exists());
+        $this->assertDatabaseHas('financial_profit_allocations', [
+            'sale_id' => $sale->id,
+            'profit_amount' => 2.96,
+            'social_fund_amount' => 0.30,
+        ]);
+
+        $this->post(route('sales.confirm', $sale))->assertSessionHasErrors('sale');
     }
 }

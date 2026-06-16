@@ -12,6 +12,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\RecipeController;
+use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
 
@@ -89,6 +90,16 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:production.manage')
         ->name('production.confirm');
 
+    Route::resource('/ventas', SaleController::class)
+        ->except(['destroy'])
+        ->parameters(['ventas' => 'sale'])
+        ->middleware('can:sales.manage')
+        ->names('sales');
+
+    Route::post('/ventas/{sale}/confirmar', [SaleController::class, 'confirm'])
+        ->middleware('can:sales.manage')
+        ->name('sales.confirm');
+
     Route::get('/inventario', [InventoryController::class, 'index'])
         ->middleware('can:inventory.view')
         ->name('inventory.index');
@@ -107,7 +118,6 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/modulos/{module}', ModulePlaceholderController::class)
         ->whereIn('module', [
-            'sales',
             'commissions',
             'payments',
             'assets',
