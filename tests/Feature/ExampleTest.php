@@ -12,6 +12,7 @@ use App\Domains\Products\Models\InputCategory;
 use App\Domains\Products\Models\Product;
 use App\Domains\Products\Models\ProductCategory;
 use App\Domains\Products\Models\ProductVariant;
+use App\Domains\Production\Models\ProductionOrder;
 use App\Domains\Purchases\Models\Purchase;
 use App\Domains\Purchases\Models\Supplier;
 use App\Domains\Recipes\Models\Recipe;
@@ -318,5 +319,86 @@ class ExampleTest extends TestCase
         $this->get(route('inventory.show', $item))
             ->assertOk()
             ->assertSee('Compra #'.$purchase->id);
+    }
+
+    public function test_admin_can_create_and_confirm_production_order(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $recipe = Recipe::query()->with(['ingredients.inventoryItem', 'productVariant.inventoryItem'])->first();
+        $maker = Person::query()->whereHas('roleAssignments', fn ($query) => $query->where('role', 'maker'))->first();
+        $supplier = Supplier::query()->first();
+
+        $purchase = Purchase::query()->create([
+            'supplier_id' => $supplier->id,
+            'purchased_at' => now()->toDateString(),
+            'status' => 'draft',
+            'total_amount' => 0,
+        ]);
+
+        foreach ($recipe->ingredients as $ingredient) {
+            $quantity = max(100, (float) $ingredient->quantity * 20);
+            $purchase->lines()->create([
+                'inventory_item_id' => $ingredient->inventory_item_id,
+                'quantity' => $quantity,
+                'unit_cost' => 1,
+                'total_cost' => $quantity,
+            ]);
+        }
+
+        $purchase->forceFill(['total_amount' => $purchase->lines()->sum('total_cost')])->save();
+        $this->post(route('purchases.confirm', $purchase))->assertRedirect(route('purchases.show', $purchase));
+
+        $outputItem = $recipe->productVariant->inventoryItem;
+        $this->assertEquals(0.0, (float) $outputItem->current_stock);
+
+        $this->get(route('production.index'))->assertOk();
+
+        $response = $this->post(route('production.store'), [
+            'maker_id' => $maker->id,
+            'recipe_id' => $recipe->id,
+            'produced_at' => now()->toDateString(),
+            'planned_quantity' => 10,
+            'notes' => 'Produccion de prueba',
+        ]);
+
+        $order = ProductionOrder::query()->latest('id')->first();
+
+        $response->assertRedirect(route('production.show', $order));
+        $this->assertSame('draft', $order->status->value);
+
+        $this->post(route('production.confirm', $order), [
+            'produced_quantity' => 10,
+        ])->assertRedirect(route('production.show', $order));
+
+        $order->refresh();
+        $outputItem->refresh();
+
+        $this->assertSame('confirmed', $order->status->value);
+        $this->assertEquals(10.0, (float) $order->produced_quantity);
+        $this->assertEquals(10.0, (float) $outputItem->current_stock);
+        $this->assertGreaterThan(0, (float) $order->real_cost_total);
+        $this->assertDatabaseCount('production_consumptions', $recipe->ingredients->count());
+        $this->assertDatabaseHas('inventory_movements', [
+            'production_order_id' => $order->id,
+            'inventory_item_id' => $outputItem->id,
+            'type' => 'production_output',
+            'direction' => 'in',
+        ]);
+
+        foreach ($recipe->ingredients as $ingredient) {
+            $this->assertDatabaseHas('inventory_movements', [
+                'production_order_id' => $order->id,
+                'inventory_item_id' => $ingredient->inventory_item_id,
+                'type' => 'production_consumption',
+                'direction' => 'out',
+            ]);
+        }
+
+        $this->post(route('production.confirm', $order), [
+            'produced_quantity' => 10,
+        ])->assertSessionHasErrors('production');
     }
 }

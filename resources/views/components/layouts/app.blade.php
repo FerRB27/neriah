@@ -22,7 +22,7 @@
                 ['label' => 'Inventario', 'route' => 'inventory.index', 'permission' => 'inventory.view', 'accent' => 'bg-teal-500'],
                 ['label' => 'Proveedores', 'route' => 'suppliers.index', 'permission' => 'purchases.manage', 'accent' => 'bg-orange-500'],
                 ['label' => 'Compras', 'route' => 'purchases.index', 'permission' => 'purchases.manage', 'accent' => 'bg-orange-500'],
-                ['label' => 'Produccion', 'route' => 'modules.show', 'params' => ['production'], 'permission' => 'production.manage', 'accent' => 'bg-yellow-500'],
+                ['label' => 'Produccion', 'route' => 'production.index', 'permission' => 'production.manage', 'accent' => 'bg-yellow-500'],
                 ['label' => 'Ventas', 'route' => 'modules.show', 'params' => ['sales'], 'permission' => 'sales.manage', 'accent' => 'bg-rose-500'],
                 ['label' => 'Comisiones', 'route' => 'modules.show', 'params' => ['commissions'], 'permission' => 'commissions.manage', 'accent' => 'bg-fuchsia-500'],
                 ['label' => 'Pagos', 'route' => 'modules.show', 'params' => ['payments'], 'permission' => 'payments.manage', 'accent' => 'bg-violet-500'],

@@ -10,6 +10,7 @@ use App\Http\Controllers\ModulePlaceholderController;
 use App\Http\Controllers\PeopleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
@@ -78,6 +79,16 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:purchases.manage')
         ->name('purchases.confirm');
 
+    Route::resource('/produccion', ProductionController::class)
+        ->except(['destroy'])
+        ->parameters(['produccion' => 'productionOrder'])
+        ->middleware('can:production.manage')
+        ->names('production');
+
+    Route::post('/produccion/{productionOrder}/confirmar', [ProductionController::class, 'confirm'])
+        ->middleware('can:production.manage')
+        ->name('production.confirm');
+
     Route::get('/inventario', [InventoryController::class, 'index'])
         ->middleware('can:inventory.view')
         ->name('inventory.index');
@@ -96,7 +107,6 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/modulos/{module}', ModulePlaceholderController::class)
         ->whereIn('module', [
-            'production',
             'sales',
             'commissions',
             'payments',
