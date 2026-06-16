@@ -50,6 +50,10 @@ class DashboardController extends Controller
             ->where('type', FounderCapitalMovementType::Reimbursement->value)
             ->sum('amount');
 
+        $founderAdjustments = FounderCapitalMovement::query()
+            ->where('type', FounderCapitalMovementType::Adjustment->value)
+            ->sum('amount');
+
         $socialFundIn = SocialFundMovement::query()
             ->whereIn('type', [SocialFundMovementType::Allocation->value, SocialFundMovementType::Adjustment->value])
             ->sum('amount');
@@ -69,7 +73,7 @@ class DashboardController extends Controller
                 'productionConfirmed' => ProductionOrder::query()->where('status', ProductionStatus::Confirmed->value)->count(),
                 'criticalInventory' => InventoryItem::query()->whereColumn('current_stock', '<=', 'minimum_stock')->count(),
                 'pendingPayments' => Payment::query()->where('status', PaymentStatus::Pending->value)->sum('amount'),
-                'founderCapitalPending' => max(0, $founderContributions - $founderReimbursements),
+                'founderCapitalPending' => max(0, $founderContributions + $founderAdjustments - $founderReimbursements),
                 'socialFundBalance' => $socialFundIn - $socialFundOut,
             ],
             'weekRange' => [$weekStart, $weekEnd],

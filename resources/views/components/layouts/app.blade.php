@@ -14,8 +14,8 @@
         @php
             $navigation = [
                 ['label' => 'Dashboard', 'route' => 'dashboard', 'permission' => 'dashboard.view', 'accent' => 'bg-emerald-500'],
-                ['label' => 'Personas', 'route' => 'modules.show', 'params' => ['people'], 'permission' => 'people.manage', 'accent' => 'bg-sky-500'],
-                ['label' => 'Clientes', 'route' => 'modules.show', 'params' => ['customers'], 'permission' => 'customers.manage', 'accent' => 'bg-cyan-500'],
+                ['label' => 'Personas', 'route' => 'people.index', 'permission' => 'people.manage', 'accent' => 'bg-sky-500'],
+                ['label' => 'Clientes', 'route' => 'customers.index', 'permission' => 'customers.manage', 'accent' => 'bg-cyan-500'],
                 ['label' => 'Productos', 'route' => 'modules.show', 'params' => ['products'], 'permission' => 'products.manage', 'accent' => 'bg-lime-500'],
                 ['label' => 'Formulas', 'route' => 'modules.show', 'params' => ['recipes'], 'permission' => 'recipes.manage', 'accent' => 'bg-amber-500'],
                 ['label' => 'Inventario', 'route' => 'modules.show', 'params' => ['inventory'], 'permission' => 'inventory.view', 'accent' => 'bg-teal-500'],
@@ -25,7 +25,7 @@
                 ['label' => 'Comisiones', 'route' => 'modules.show', 'params' => ['commissions'], 'permission' => 'commissions.manage', 'accent' => 'bg-fuchsia-500'],
                 ['label' => 'Pagos', 'route' => 'modules.show', 'params' => ['payments'], 'permission' => 'payments.manage', 'accent' => 'bg-violet-500'],
                 ['label' => 'Activos', 'route' => 'modules.show', 'params' => ['assets'], 'permission' => 'assets.manage', 'accent' => 'bg-stone-500'],
-                ['label' => 'Finanzas', 'route' => 'modules.show', 'params' => ['finance'], 'permission' => 'finance.view', 'accent' => 'bg-blue-500'],
+                ['label' => 'Finanzas', 'route' => 'finance.founder-capital.index', 'permission' => 'finance.manage', 'accent' => 'bg-blue-500'],
                 ['label' => 'Fondo Social', 'route' => 'modules.show', 'params' => ['social-fund'], 'permission' => 'social-fund.manage', 'accent' => 'bg-pink-500'],
                 ['label' => 'Reportes', 'route' => 'modules.show', 'params' => ['reports'], 'permission' => 'reports.view', 'accent' => 'bg-indigo-500'],
                 ['label' => 'Seguridad', 'route' => 'modules.show', 'params' => ['security'], 'permission' => 'security.manage', 'accent' => 'bg-red-500'],
