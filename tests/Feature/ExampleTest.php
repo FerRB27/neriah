@@ -5,7 +5,15 @@ namespace Tests\Feature;
 use App\Domains\Customers\Models\Customer;
 use App\Domains\Finance\Enums\FounderCapitalMovementType;
 use App\Domains\Finance\Models\FounderCapitalMovement;
+use App\Domains\Inventory\Models\InventoryItem;
 use App\Domains\People\Models\Person;
+use App\Domains\Products\Models\Input;
+use App\Domains\Products\Models\InputCategory;
+use App\Domains\Products\Models\Product;
+use App\Domains\Products\Models\ProductCategory;
+use App\Domains\Products\Models\ProductVariant;
+use App\Domains\Purchases\Models\Supplier;
+use App\Domains\Recipes\Models\Recipe;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -107,5 +115,121 @@ class ExampleTest extends TestCase
 
         $response->assertRedirect(route('finance.founder-capital.index'));
         $this->assertTrue(FounderCapitalMovement::query()->where('concept', 'Compra adicional de insumos')->exists());
+    }
+
+    public function test_admin_can_manage_inputs(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $category = InputCategory::query()->first();
+
+        $this->get(route('inputs.index'))->assertOk();
+
+        $response = $this->post(route('inputs.store'), [
+            'input_category_id' => $category->id,
+            'sku' => 'INS-TEST-001',
+            'name' => 'Insumo Test',
+            'unit' => 'kg',
+            'minimum_stock' => 1.5,
+            'active' => '1',
+        ]);
+
+        $response->assertRedirect(route('inputs.index'));
+        $input = Input::query()->where('name', 'Insumo Test')->first();
+
+        $this->assertNotNull($input);
+        $this->assertDatabaseHas('inventory_items', ['input_id' => $input->id, 'sku' => 'INS-TEST-001']);
+    }
+
+    public function test_admin_can_manage_products(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $category = ProductCategory::query()->first();
+
+        $this->get(route('products.index'))->assertOk();
+
+        $response = $this->post(route('products.store'), [
+            'product_category_id' => $category->id,
+            'name' => 'Producto Test',
+            'standard_cost' => 1.15,
+            'base_price' => 2.50,
+            'commission_amount' => 0.25,
+            'maker_payment_amount' => 0.35,
+            'active' => '1',
+            'variant_sku' => 'PROD-TEST-001',
+            'variant_name' => 'Producto Test 85g',
+            'unit_label' => 'unidad',
+            'units_per_variant' => 1,
+            'weight_grams' => 85,
+            'price' => 2.50,
+            'inventory_sku' => 'PT-PROD-TEST-001',
+            'minimum_stock' => 10,
+        ]);
+
+        $response->assertRedirect(route('products.index'));
+        $product = Product::query()->where('name', 'Producto Test')->first();
+        $variant = ProductVariant::query()->where('sku', 'PROD-TEST-001')->first();
+
+        $this->assertNotNull($product);
+        $this->assertNotNull($variant);
+        $this->assertDatabaseHas('inventory_items', ['product_variant_id' => $variant->id, 'sku' => 'PT-PROD-TEST-001']);
+    }
+
+    public function test_admin_can_manage_recipes(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $variant = ProductVariant::query()->first();
+        $inputItem = InventoryItem::query()->where('item_type', 'input')->first();
+
+        $this->get(route('recipes.index'))->assertOk();
+
+        $response = $this->post(route('recipes.store'), [
+            'product_variant_id' => $variant->id,
+            'name' => 'Formula Test',
+            'expected_yield' => 12,
+            'yield_unit' => 'unidad',
+            'active' => '1',
+            'ingredients' => [
+                [
+                    'inventory_item_id' => $inputItem->id,
+                    'quantity' => 0.5,
+                    'unit' => $inputItem->unit,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('recipes.index'));
+        $recipe = Recipe::query()->where('name', 'Formula Test')->first();
+
+        $this->assertNotNull($recipe);
+        $this->assertDatabaseHas('recipe_ingredients', ['recipe_id' => $recipe->id, 'inventory_item_id' => $inputItem->id]);
+    }
+
+    public function test_admin_can_manage_suppliers(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $this->get(route('suppliers.index'))->assertOk();
+
+        $response = $this->post(route('suppliers.store'), [
+            'name' => 'Proveedor Nuevo',
+            'phone' => '7000-7777',
+            'email' => 'nuevo.proveedor@neriah.test',
+            'address' => 'San Salvador',
+            'active' => '1',
+        ]);
+
+        $response->assertRedirect(route('suppliers.index'));
+        $this->assertInstanceOf(Supplier::class, Supplier::query()->where('email', 'nuevo.proveedor@neriah.test')->first());
     }
 }
