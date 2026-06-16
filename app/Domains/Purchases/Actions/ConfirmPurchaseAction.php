@@ -7,6 +7,7 @@ use App\Domains\Inventory\Enums\InventoryMovementDirection;
 use App\Domains\Inventory\Enums\InventoryMovementType;
 use App\Domains\Inventory\Services\KardexService;
 use App\Domains\Purchases\Models\Purchase;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 
 class ConfirmPurchaseAction
@@ -20,6 +21,18 @@ class ConfirmPurchaseAction
     {
         return DB::transaction(function () use ($purchase): Purchase {
             $purchase->loadMissing('lines');
+
+            if ($purchase->status === 'confirmed') {
+                throw ValidationException::withMessages([
+                    'purchase' => 'La compra ya fue confirmada.',
+                ]);
+            }
+
+            if ($purchase->lines->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'purchase' => 'La compra debe tener al menos una linea.',
+                ]);
+            }
 
             foreach ($purchase->lines as $line) {
                 $this->kardex->record(new InventoryMovementData(

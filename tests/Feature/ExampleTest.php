@@ -12,6 +12,7 @@ use App\Domains\Products\Models\InputCategory;
 use App\Domains\Products\Models\Product;
 use App\Domains\Products\Models\ProductCategory;
 use App\Domains\Products\Models\ProductVariant;
+use App\Domains\Purchases\Models\Purchase;
 use App\Domains\Purchases\Models\Supplier;
 use App\Domains\Recipes\Models\Recipe;
 use App\Models\User;
@@ -231,5 +232,58 @@ class ExampleTest extends TestCase
 
         $response->assertRedirect(route('suppliers.index'));
         $this->assertInstanceOf(Supplier::class, Supplier::query()->where('email', 'nuevo.proveedor@neriah.test')->first());
+    }
+
+    public function test_admin_can_create_and_confirm_purchase_generating_kardex(): void
+    {
+        $this->withoutVite();
+        $this->seed();
+        $this->actingAs(User::query()->where('email', 'admin@neriah.test')->first());
+
+        $supplier = Supplier::query()->first();
+        $item = InventoryItem::query()->where('item_type', 'input')->first();
+
+        $this->get(route('purchases.index'))->assertOk();
+
+        $response = $this->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'purchased_at' => now()->toDateString(),
+            'notes' => 'Compra de prueba',
+            'lines' => [
+                [
+                    'inventory_item_id' => $item->id,
+                    'quantity' => 10,
+                    'unit_cost' => 2.5,
+                ],
+            ],
+        ]);
+
+        $purchase = Purchase::query()->latest('id')->first();
+
+        $response->assertRedirect(route('purchases.show', $purchase));
+        $this->assertSame('draft', $purchase->status);
+        $this->assertDatabaseHas('purchase_lines', [
+            'purchase_id' => $purchase->id,
+            'inventory_item_id' => $item->id,
+        ]);
+
+        $this->post(route('purchases.confirm', $purchase))
+            ->assertRedirect(route('purchases.show', $purchase));
+
+        $purchase->refresh();
+        $item->refresh();
+
+        $this->assertSame('confirmed', $purchase->status);
+        $this->assertEquals(10.0, (float) $item->current_stock);
+        $this->assertEquals(2.5, (float) $item->average_cost);
+        $this->assertDatabaseHas('inventory_movements', [
+            'purchase_id' => $purchase->id,
+            'inventory_item_id' => $item->id,
+            'type' => 'purchase',
+            'direction' => 'in',
+        ]);
+
+        $this->post(route('purchases.confirm', $purchase))
+            ->assertSessionHasErrors('purchase');
     }
 }

@@ -8,6 +8,7 @@ use App\Http\Controllers\InputController;
 use App\Http\Controllers\ModulePlaceholderController;
 use App\Http\Controllers\PeopleController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
@@ -66,6 +67,16 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:purchases.manage')
         ->names('suppliers');
 
+    Route::resource('/compras', PurchaseController::class)
+        ->except(['destroy'])
+        ->parameters(['compras' => 'purchase'])
+        ->middleware('can:purchases.manage')
+        ->names('purchases');
+
+    Route::post('/compras/{purchase}/confirmar', [PurchaseController::class, 'confirm'])
+        ->middleware('can:purchases.manage')
+        ->name('purchases.confirm');
+
     Route::get('/finanzas/capital-fundador', [FounderCapitalController::class, 'index'])
         ->middleware('can:finance.manage')
         ->name('finance.founder-capital.index');
@@ -77,7 +88,6 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/modulos/{module}', ModulePlaceholderController::class)
         ->whereIn('module', [
             'inventory',
-            'purchases',
             'production',
             'sales',
             'commissions',
